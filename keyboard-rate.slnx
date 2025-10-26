@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="keyboard-rate.vcxproj" Id="ff11a2be-239b-4b11-be55-50dbce6d5be1" />
+</Solution>
