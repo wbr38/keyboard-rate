@@ -6,15 +6,42 @@ int ErrorExit(const std::string& message)
 {
     std::cerr << message << " (error code: " << GetLastError() << ")" << std::endl;
     system("pause");
+    exit(EXIT_FAILURE);
     return EXIT_FAILURE;
 }
 
 void PrintState(const FILTERKEYS& keys)
 {
-    //std::cout << "\tAcceptance Delay: " << keys.iWaitMSec << std::endl;
+    std::cout << "\tAcceptance Delay: " << keys.iWaitMSec << std::endl;
     std::cout << "\tDelay Until Repeat: " << keys.iDelayMSec << std::endl;
     std::cout << "\tRepeat Rate: " << keys.iRepeatMSec << std::endl;
-    //std::cout << "\tDebounce Time: " << keys.iBounceMSec << std::endl;
+    std::cout << "\tDebounce Time: " << keys.iBounceMSec << std::endl;
+    std::cout << "\tFlags: " << keys.dwFlags << std::endl;
+}
+
+void ParseInput(const std::string& message, DWORD& dest)
+{
+    std::cout << message;
+    std::cin >> dest;
+    if (std::cin.fail())
+        ErrorExit("Invalid input");
+}
+
+void SetState(const FILTERKEYS& keys, bool persist)
+{
+    DWORD flags = SPIF_SENDCHANGE;
+    if (persist)
+        flags |= SPIF_UPDATEINIFILE; // write to registry to persist changes
+
+    BOOL success = SystemParametersInfo(
+        SPI_SETFILTERKEYS,
+        sizeof(FILTERKEYS),
+        (PVOID)&keys,
+        flags
+    );
+    
+    if (!success)
+        ErrorExit("Failed to set new FilterKeys struct");
 }
 
 int main(int argc, char* argv[])
@@ -22,46 +49,48 @@ int main(int argc, char* argv[])
     BOOL success;
 
     // Get current FilterKeys struct
-    FILTERKEYS keys;
-    ZeroMemory(&keys, sizeof(FILTERKEYS));
-    keys.cbSize = sizeof(FILTERKEYS);
-    success = SystemParametersInfo(SPI_GETFILTERKEYS, sizeof(FILTERKEYS), &keys, 0);         
+    FILTERKEYS original_keys;
+    ZeroMemory(&original_keys, sizeof(FILTERKEYS));
+    original_keys.cbSize = sizeof(FILTERKEYS);
+    success = SystemParametersInfo(SPI_GETFILTERKEYS, sizeof(FILTERKEYS), &original_keys, 0);         
     if (!success)
         return ErrorExit("Failed to get current FilterKeys struct");
 
     std::cout << "Current State: " << std::endl;
-    PrintState(keys);
+    PrintState(original_keys);
     std::cout << std::endl;
 
-    // Input new delay and repeat rate
-    std::cout << "Enter new delay until repeat: ";
-    std::cin >> keys.iDelayMSec;
-    if (std::cin.fail())
-        return ErrorExit("Invalid input");
-
-    std::cout << "Enter new repeat rate: ";
-    std::cin >> keys.iRepeatMSec;
-    if (std::cin.fail())
-        return ErrorExit("Invalid input");
-
-    std::cout << std::endl;
-    std::cout << "Setting new state:" << std::endl;
-    PrintState(keys);
+    // New state
+    FILTERKEYS new_keys = original_keys;
+    ParseInput("Enter new acceptance delay: ", new_keys.iWaitMSec);
+    ParseInput("Enter new delay until repeat: ", new_keys.iDelayMSec);
+    ParseInput("Enter new repeat rate: ", new_keys.iRepeatMSec);
+    ParseInput("Enter new debounce time: ", new_keys.iBounceMSec);
 
     // Necessary flags
-    keys.dwFlags |= FKF_FILTERKEYSON;
-    keys.dwFlags |= FKF_AVAILABLE;
+    new_keys.dwFlags |= FKF_FILTERKEYSON;
+    new_keys.dwFlags |= FKF_AVAILABLE;
 
-    // Set new state
-    success = SystemParametersInfo(
-        SPI_SETFILTERKEYS,
-        sizeof(FILTERKEYS),
-        &keys,
-        SPIF_UPDATEINIFILE | SPIF_SENDCHANGE // Persist changes (write to registry)
-    );
+    // Set new state (temporary)
+    std::cout << "\nSetting new state:" << std::endl;
+    PrintState(new_keys);
+    SetState(new_keys, false);
 
-    if (!success)
-        return ErrorExit("Failed to set new FilterKeys struct");
+    // Keep or revert changes
+    std::cout << std::endl;
+    std::cout << "Changes temporarily applied, if you cannot type you can logout/restart to revert the changes" << std::endl;
+    std::cout << "Keep changes? (y/n): ";
+    char confirm = 'n';
+    std::cin >> confirm;
+
+    if (confirm != 'y' && confirm != 'Y') {
+        SetState(original_keys, false);
+        std::cout << "Restored original state." << std::endl;
+    }
+    else {
+        SetState(new_keys, true);
+        std::cout << "Done" << std::endl;
+    }
 
     system("pause");
 }
