@@ -1,13 +1,23 @@
+#define NOMINMAX
+
 #include <iostream>
 #include <Windows.h>
 #include <cstdlib>
 
+// Alternative to system("pause") which caused AV false positives
+void WaitForAnyKey()
+{
+    std::cout << "Press Enter to continue...";
+    std::cin.clear();
+    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    std::cin.get();
+}
+
 int ErrorExit(const std::string& message)
 {
     std::cerr << message << " (error code: " << GetLastError() << ")" << std::endl;
-    system("pause");
-    exit(EXIT_FAILURE);
-    return EXIT_FAILURE;
+    WaitForAnyKey();
+    std::exit(EXIT_FAILURE);
 }
 
 void PrintState(const FILTERKEYS& keys)
@@ -92,5 +102,5 @@ int main(int argc, char* argv[])
         std::cout << "Done" << std::endl;
     }
 
-    system("pause");
+    WaitForAnyKey();
 }
